@@ -42,24 +42,12 @@ def get_classes_description(model_file_path, classes_count):
     return model_desc["classes"]
    
 
-class StopWatch:
-    def __init__(self, silent=False):
-        self.__silent = silent
-        self.time = time()
-
-    def t(self, message):
-        if self.__silent:
-            return
-
-        print("watch: %s: %0.4f" % (message, time() - self.time))
-        self.time = time()
-
 class FRCNNDetector:
 
     def __init__(self, model_path,
                  pad_value = 114, cntk_scripts_path=r"c:\local\cntk\Examples\Image\Detection\FastRCNN",
                  use_selective_search_rois = True,
-                 use_grid_rois = True, verbose=False):
+                 use_grid_rois = True):
         self.__model_path = model_path
         self.__cntk_scripts_path = cntk_scripts_path
         self.__pad_value = pad_value
@@ -69,7 +57,6 @@ class FRCNNDetector:
         self.__model = None
         self.__model_warm = False
         self.__grid_rois_cache = {}
-        self.__verbose = verbose
 
         self.labels_count = 0
 
@@ -228,21 +215,12 @@ class FRCNNDetector:
 
     def detect(self, img):
 
-        watch = StopWatch(silent=(not self.__verbose))
         self.ensure_model_is_loaded()
-        watch.t("Loaded model")
-
         self.warm_up()
-
-        watch.t("Warmed up model")
 
         resized_img, img_model_arg = self.resize_and_pad(img)
 
-        watch.t("Resized image")
-
         test_rois, original_rois = self.get_rois_for_image(img)
-
-        watch.t("Generated ROIs")
 
         roi_padding_index = len(original_rois)
 
@@ -258,7 +236,6 @@ class FRCNNDetector:
 
         # run it through the model
         output = self.__model.eval(arguments)
-        watch.t("Evaluated through network")
         self.__model_warm  = True
         
         
@@ -279,11 +256,8 @@ class FRCNNDetector:
         non_padded_rois = test_rois[:roi_padding_index]
         max_probs = np.amax(rois_probs, axis=1).tolist()
 
-        watch.t("Calculated probs")
-
         rois_prediction_indices = applyNonMaximaSuppression(nms_threshold, rois_labels_predictions, max_probs,
                                                             non_padded_rois)
-        watch.t("non-maxima supression")
 
         original_rois_predictions = original_rois[rois_prediction_indices]
 
@@ -291,7 +265,7 @@ class FRCNNDetector:
         # filter out backgrond label
         non_background_indices = rois_predictions_labels > 0
         rois_predictions_labels = rois_predictions_labels[non_background_indices]
-        rois_predictions = original_rois_predictions[non_noise_indices]
+        rois_predictions = original_rois_predictions[non_background_indices]
         return rois_predictions, rois_predictions_labels
 
 
@@ -316,9 +290,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--json-output', type=str, metavar='<file path>',
                         help='Path to output JSON file', required=False)
-
-    parser.add_argument('--verbose', help='Indicates whether the script shouuld produce verbose output',
-                        required=False, action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -346,8 +317,7 @@ if __name__ == "__main__":
         file_paths = [input_path]
 
     detector = FRCNNDetector(model_file_path, use_selective_search_rois=False, 
-                            cntk_scripts_path=cntk_scripts_path,
-                            verbose=args.verbose)
+                            cntk_scripts_path=cntk_scripts_path)
     detector.load_model()
 
     if json_output_path is not None:

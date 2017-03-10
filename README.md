@@ -6,7 +6,7 @@ The script supports the following cmd line options:
 ```
 usage: frcnn_detector.py [-h] --input <path> [--output <directory path>]
                          --model <file path> [--cntk-path <dir path>]
-                         [--json-output <file path>] [--verbose]
+                         [--json-output <file path>]
 
 FRCNN Detector
 
@@ -22,6 +22,4 @@ optional arguments:
                         c:\local\cntk
   --json-output <file path>
                         Path to output JSON file
-  --verbose             Indicates whether the script shouuld produce verbose
-                        output
 ```
