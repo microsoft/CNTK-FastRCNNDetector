@@ -3,11 +3,19 @@ A python implementation for a CNTK Fast-RCNN evaluation client.
 
 Call a Fast-RCNN python model from your python code, or run as a script directly from the command line.
 
-For more information regarding the CNTK Fast-RCNN implementation, please checkout <a href="">this tutorial</a>.
+For more information regarding the CNTK Fast-RCNN implementation, please checkout <a href="https://github.com/Microsoft/CNTK/wiki/Object-Detection-using-Fast-R-CNN">this tutorial</a>.
 
 A detailed notebook containing a walkthrough for evaluating a single image using a Fast-RCNN model, is <a href="https://github.com/nadavbar/cntk-fastrcnn/blob/master/CNTK_FastRCNN_Eval.ipynb">available here</a>. 
 
 In addition, there is also a node.js wrapper for this code that lets you call this code from node.js or Electron: https://github.com/nadavbar/node-cntk-fastrcnn.
+
+## Preliminaries
+
+Since the FRCNN detector uses bits of the CNTK Fast-RCNN implementation it has the same requirements as the CNTK
+Fast-RCNN training pipeline. 
+
+Before running the code in this repository, please make sure to install the required python packages as described
+in <a href="https://github.com/Microsoft/CNTK/wiki/Object-Detection-using-Fast-R-CNN#setup">the Fast-RCNN CNTK tutorial</a>.  
 
 ## Using directly from your python code
 
