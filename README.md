@@ -1,30 +1,15 @@
 # CNTK-FastRCNNDetector
-A python implementation for a CNTK Fast-RCNN evaluation client
+A python implementation for a CNTK Fast-RCNN evaluation client.
 
 Call a Fast-RCNN python model from your python code, or run as a script directly from the command line.
 
-In script mode, the script supports the following cmd line options:
+For more information regarding the CNTK Fast-RCNN implementation, please checkout <a href="">this tutorial</a>.
 
-```
-usage: frcnn_detector.py [-h] --input <path> [--output <directory path>]
-                         --model <file path> [--cntk-path <dir path>]
-                         [--json-output <file path>]
+A detailed notebook containing a walkthrough for evaluating a single image using a Fast-RCNN model, is <a href="https://github.com/nadavbar/cntk-fastrcnn/blob/master/CNTK_FastRCNN_Eval.ipynb">available here</a>. 
 
-FRCNN Detector
+In addition, there is also a node.js wrapper for this code that lets you call this code from node.js or Electron: https://github.com/nadavbar/node-cntk-fastrcnn.
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --input <path>        Path to image file or to a directory containing image
-                        in jpg format
-  --output <directory path>
-                        Path to output directory
-  --model <file path>   Path to model file
-  --cntk-path <dir path>
-                        Path to the diretory in which CNTK is installed, e.g.
-                        c:\local\cntk
-  --json-output <file path>
-                        Path to output JSON file
-```
+## Using directly from your python code
 
 In order to use directly from your python code, import frcnn_detector.py and initialize a new 
 FRCNNDetector object with a path to your model file and to the CNTK installation.
@@ -79,10 +64,93 @@ the load_model method wasn't called yet.</li>
 <li>**warm_up()** - Runs a "dummy" detection through the network. Can be used to make sure that all of the CNTK libraries are
 loaded before the actual detection is called.</li>
 
-<li>**resize_and_pad(img)** - Accepts an image in an OpenCV format and resizes (and padds) the image according to the input format that the network accepts.
-Returns a tuple of the resized image in an OpenCV resable format, and in the format expected by the network (BGR).</li>
+<li>**resize_and_pad(img)** - Accepts an image in an OpenCV format and resizes (and pads) the image according to the input format that the network accepts.
+Returns a tuple of the resized image in an OpenCV readable format, and in the format expected by the network (BGR).</li>
 
 <li>**get_rois_for_image(img)**  - Accepts an image in an OpenCV format and calculates a list of ROIs according to the input format that the network accepts.
 As an optimization,tThe grid ROIs are calculated only once and then cached and reused. The method returns a tuple, where the first item is a list of ROIs that correspond 
-to the internal network format (in relative image coordinates), and the second item is a list of correpsonding ROIs in the format of the original image.</li>
+to the internal network format (in relative image coordinates), and the second item is a list of corresponding ROIs in the format of the original image.</li>
 </il>
+
+## Run as a script
+
+The script accepts either a single image or directory of images and outputs either corresponding images 
+with highlighted bounding boxes or a JSON file with a textual description of the detection result. (JSON description is available below)  
+
+In script mode, the script supports the following cmd line options:
+
+```
+usage: frcnn_detector.py [-h] --input <path> [--output <directory path>]
+                         --model <file path> [--cntk-path <dir path>]
+                         [--json-output <file path>]
+
+FRCNN Detector
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --input <path>        Path to image file or to a directory containing image
+                        in jpg format
+  --output <directory path>
+                        Path to output directory
+  --model <file path>   Path to model file
+  --cntk-path <dir path>
+                        Path to the directory in which CNTK is installed, e.g.
+                        c:\local\cntk
+  --json-output <file path>
+                        Path to output JSON file
+```
+
+Here is an example of the result object of a directory that contains 2 images (named '1.jpg' and '2.jpg'):
+```json
+{
+	"frames": {
+		"1.jpg": {
+			"regions": [
+				{
+					"class": 1,
+					"x1": 418,
+					"x2": 538,
+					"y2": 179,
+					"y1": 59
+				}
+			]
+		},
+		"2.jpg": {
+			"regions": [
+				{
+					"class": 2,
+					"x1": 478,
+					"x2": 597,
+					"y2": 298,
+					"y1": 59
+				}
+			]
+		}
+	},
+	"classes": {
+		"background" : 0,
+		"human": 1,
+		"cat": 2,
+		"dog" : 3
+	}
+}
+```
+
+### Adding descriptive classes names
+Since CNTK does not embed the names of the classes in the model, on default, the module returns non descriptive names for the classes, e.g. "class_1", "class_2".
+
+If you want the module to return more descriptive names, you can place a JSON file named "model.json" in the same directory of the Fast-RCNN model file.
+You can then place the descriptions of the classes in the JSON file under the "classes" key.
+
+For example, the following JSON will describe the classes for the above example:
+
+```json
+{
+    "classes" : {
+        "background" : 0,
+        "human" : 1,
+		"cat" : 2,
+		"dog" : 3
+    }
+}
+```

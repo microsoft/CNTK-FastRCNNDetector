@@ -285,7 +285,7 @@ if __name__ == "__main__":
                         required=True)
 
     parser.add_argument('--cntk-path', type=str, metavar='<dir path>',
-                        help='Path to the diretory in which CNTK is installed, e.g. c:\\local\\cntk',
+                        help='Path to the directory in which CNTK is installed, e.g. c:\\local\\cntk',
                         required=False)
 
     parser.add_argument('--json-output', type=str, metavar='<file path>',
