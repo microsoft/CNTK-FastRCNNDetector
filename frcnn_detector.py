@@ -1,10 +1,15 @@
-import sys
 import cv2
+import json
+import sys
 import numpy as np
 from os import path
+
+# CNTK imports
 from cntk import load_model
-from time import time
-import json
+from cntk.layers import Placeholder
+from cntk.graph import find_by_name, get_node_outputs
+from cntk.ops import combine, input_variable
+from cntk.ops.functions import CloneMethod
 
 # constants used for ROI generation:
 # ROI generation
@@ -40,7 +45,7 @@ def get_classes_description(model_file_path, classes_count):
         file_content = handle.read()
         model_desc = json.loads(file_content)
     return model_desc["classes"]
-   
+
 
 class FRCNNDetector:
 
@@ -89,8 +94,7 @@ class FRCNNDetector:
         # prepare the arguments
         arguments = {
             self.__model.arguments[self.__args_indices["features"]]: [dummy_image],
-            self.__model.arguments[self.__args_indices["rois"]]: [dummy_rois],
-            self.__model.arguments[self.__args_indices["roiLabels"]]: [dummy_labels]
+            self.__model.arguments[self.__args_indices["rois"]]: [dummy_rois]
         }
         self.__model.eval(arguments)
 
@@ -100,19 +104,48 @@ class FRCNNDetector:
     def load_model(self):
         if self.__model:
             raise Exception("Model already loaded")
-        self.__model = load_model(self.__model_path)
+        
+        trained_frcnn_model = load_model(self.__model_path)
+
+        # cache indices of the model arguments
+        args_indices = {}
+        for i,arg in enumerate(trained_frcnn_model.arguments):
+            args_indices[arg.name] = i
+
+        self.__nr_rois = trained_frcnn_model.arguments[args_indices["rois"]].shape[0]
+        self.__resize_width = trained_frcnn_model.arguments[args_indices["features"]].shape[1]
+        self.__resize_height = trained_frcnn_model.arguments[args_indices["features"]].shape[2]
+        self.labels_count = trained_frcnn_model.arguments[args_indices["roiLabels"]].shape[1]
+
+        # next, we adjust the clone the model and create input nodes just for the features (image) and ROIs
+        # This will make sure that only the calculations that are needed for evaluating images are performed
+        # during test time
+        #  
+        # find the original features and rois input nodes
+        features_node = find_by_name(trained_frcnn_model, "features")
+        rois_node = find_by_name(trained_frcnn_model, "rois")
+
+        #  find the output "z" node
+        z_node = find_by_name(trained_frcnn_model, 'z')
+
+        # define new input nodes for the features (image) and rois
+        image_input = input_variable(features_node.shape, name='features')
+        roi_input = input_variable(rois_node.shape, name='rois')
+
+        # Clone the desired layers with fixed weights and place holder for the new input nodes
+        cloned_nodes = combine([z_node.owner]).clone(
+            CloneMethod.freeze,
+            {features_node: Placeholder(name='features'), rois_node: Placeholder(name='rois')})
+
+        # apply the cloned nodes to the input nodes to obtain the model for evaluation
+        self.__model = cloned_nodes(image_input, roi_input)
+
+        # cache the indices of the input nodes
         self.__args_indices = {}
-        self.__output_indices = {}
 
-        for arg, i in zip(self.__model.arguments, range(len(self.__model.arguments))):
+        for i,arg in enumerate(self.__model.arguments):
             self.__args_indices[arg.name] = i
-        for out, i in zip(self.__model.outputs, range(len(self.__model.outputs))):
-            self.__output_indices[out.name] = i 
 
-        self.__nr_rois = self.__model.arguments[self.__args_indices["rois"]].shape[0]
-        self.__resize_width = self.__model.arguments[self.__args_indices["features"]].shape[1]
-        self.__resize_height = self.__model.arguments[self.__args_indices["features"]].shape[2]
-        self.labels_count = self.__model.arguments[self.__args_indices["roiLabels"]].shape[1]
 
     def resize_and_pad(self, img):
         self.ensure_model_is_loaded()
@@ -230,22 +263,15 @@ class FRCNNDetector:
         # prepare the arguments
         arguments = {
             self.__model.arguments[self.__args_indices["features"]]: [img_model_arg],
-            self.__model.arguments[self.__args_indices["rois"]]: [test_rois],
-            self.__model.arguments[self.__args_indices["roiLabels"]]: [dummy_labels]
+            self.__model.arguments[self.__args_indices["rois"]]: [test_rois]
         }
 
         # run it through the model
         output = self.__model.eval(arguments)
         self.__model_warm  = True
         
-        
-        # some CNTK version call the output layer "z_output" and some "z", not sure why its not embdded in the model
-        output_param_name = "z_output"
-        if (not output_param_name in self.__output_indices):
-            output_param_name = "z"
-        
         # take just the relevant part and cast to float64 to prevent overflow when doing softmax
-        rois_values = output[self.__model.outputs[self.__output_indices[output_param_name]]][0][0][:roi_padding_index].astype(np.float64)
+        rois_values = output[0][0][:roi_padding_index].astype(np.float64)
 
         # get the prediction for each roi by taking the index with the maximal value in each row
         rois_labels_predictions = np.argmax(rois_values, axis=1)
