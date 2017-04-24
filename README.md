@@ -30,7 +30,7 @@ import cv2
 from os import path
 from frcnn_detector import FRCNNDetector
 
-cntk_scripts_path = r'C:\local\cntk\Examples\Image\Detection\FastRCNN'
+cntk_scripts_path = r'C:/local/cntk/Examples/Image/Detection/FastRCNN'
 model_file_path = path.join(cntk_scripts_path, r'proc/grocery_2000/cntkFiles/Output/Fast-RCNN.model')
 
 # initialize the detector and load the model
@@ -66,16 +66,16 @@ in order to run detection using the model.
 The following set of methods are helper methods that you can use in case you need to do anything extra:
 
 <ul>
-<li>**load_model()** - Loads the model. Note that the detect() method will make sure that the model is loaded in case
+<li><b>load_model()</b> - Loads the model. Note that the detect() method will make sure that the model is loaded in case
 the load_model method wasn't called yet.</li>
 
-<li>**warm_up()** - Runs a "dummy" detection through the network. Can be used to make sure that all of the CNTK libraries are
+<li><b>warm_up()</b> - Runs a "dummy" detection through the network. Can be used to make sure that all of the CNTK libraries are
 loaded before the actual detection is called.</li>
 
-<li>**resize_and_pad(img)** - Accepts an image in an OpenCV format and resizes (and pads) the image according to the input format that the network accepts.
+<li><b>resize_and_pad(img)</b> - Accepts an image in an OpenCV format and resizes (and pads) the image according to the input format that the network accepts.
 Returns a tuple of the resized image in an OpenCV readable format, and in the format expected by the network (BGR).</li>
 
-<li>**get_rois_for_image(img)**  - Accepts an image in an OpenCV format and calculates a list of ROIs according to the input format that the network accepts.
+<li><b>get_rois_for_image(img)</b>  - Accepts an image in an OpenCV format and calculates a list of ROIs according to the input format that the network accepts.
 As an optimization,tThe grid ROIs are calculated only once and then cached and reused. The method returns a tuple, where the first item is a list of ROIs that correspond 
 to the internal network format (in relative image coordinates), and the second item is a list of corresponding ROIs in the format of the original image.</li>
 </il>
