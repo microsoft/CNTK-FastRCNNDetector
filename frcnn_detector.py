@@ -6,8 +6,8 @@ from os import path
 
 # CNTK imports
 from cntk import load_model
-from cntk.layers import Placeholder
-from cntk.graph import find_by_name, get_node_outputs
+from cntk import placeholder
+from cntk.logging.graph import find_by_name, get_node_outputs
 from cntk.ops import combine, input_variable
 from cntk.ops.functions import CloneMethod
 
@@ -135,7 +135,7 @@ class FRCNNDetector:
         # Clone the desired layers with fixed weights and place holder for the new input nodes
         cloned_nodes = combine([z_node.owner]).clone(
             CloneMethod.freeze,
-            {features_node: Placeholder(name='features'), rois_node: Placeholder(name='rois')})
+            {features_node: placeholder(name='features'), rois_node: placeholder(name='rois')})
 
         # apply the cloned nodes to the input nodes to obtain the model for evaluation
         self.__model = cloned_nodes(image_input, roi_input)
@@ -356,6 +356,7 @@ if __name__ == "__main__":
     print("Number of images to process: %d"%len(file_paths))
 
     for file_path, counter in zip(file_paths, range(len(file_paths))):
+        print("Read file in path:", file_path)
         img = cv2.imread(file_path)
         rects, labels = detector.detect(img)
 
