@@ -8,7 +8,8 @@ from os import path
 from cntk import load_model
 from cntk import placeholder
 from cntk.logging.graph import find_by_name, get_node_outputs
-from cntk.ops import combine, input_variable
+from cntk.ops import combine
+from cntk.ops.sequence import input_variable
 from cntk.ops.functions import CloneMethod
 
 # constants used for ROI generation:
