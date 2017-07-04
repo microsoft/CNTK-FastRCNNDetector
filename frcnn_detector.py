@@ -18,7 +18,7 @@ roi_minDimRel = 0.04
 roi_maxDimRel = 0.4
 roi_minNrPixelsRel = 2 * roi_minDimRel * roi_minDimRel
 roi_maxNrPixelsRel = 0.33 * roi_maxDimRel * roi_maxDimRel
-roi_maxAspectRatio = 7.0  # maximum aspect Ratio of a ROI vertically and horizontally
+roi_maxAspectRatio = 4.0  # maximum aspect Ratio of a ROI vertically and horizontally
 roi_maxImgDim = 200  # image size used for ROI generation
 ss_scale = 100  # selective search ROIS: parameter controlling cluster size for segmentation
 ss_sigma = 1.2  # selective search ROIs: width of gaussian kernal for segmentation
@@ -61,7 +61,7 @@ class FRCNNDetector:
         self.__use_selective_search_rois = use_selective_search_rois
         self.__use_grid_rois = use_grid_rois
         self.__model = None
-        self.__isPythonModel = None
+        self.__is_python_model = False
         self.__model_warm = False
         self.__grid_rois_cache = {}
 
@@ -94,7 +94,7 @@ class FRCNNDetector:
         dummy_image = np.ones((3, self.__resize_width, self.__resize_height)) * 255.0
 
         # prepare the arguments
-        if (self.__isPythonModel):#python model
+        if (self.__is_python_model):#python model
             arguments = {
                 self.__model.arguments[0]: [dummy_image],
                 self.__model.arguments[1]: [dummy_rois]
@@ -115,13 +115,14 @@ class FRCNNDetector:
             raise Exception("Model already loaded")
         
         trained_frcnn_model = load_model(self.__model_path)
-        self.__isPythonModel = (True if (len(trained_frcnn_model.arguments) < 3) else False)
+        self.__is_python_model = True if (len(trained_frcnn_model.arguments) < 3) else False
 
-        if (self.__isPythonModel):#python model
+        print(trained_frcnn_model.output)
+        if (self.__is_python_model):#python model
             self.__nr_rois = trained_frcnn_model.arguments[1].shape[0]
             self.__resize_width = trained_frcnn_model.arguments[0].shape[1]
             self.__resize_height = trained_frcnn_model.arguments[0].shape[2]
-            self.labels_count = 4 # this should be the number of labels in the model 
+            self.labels_count = trained_frcnn_model.arguments[1].shape[1] # this should be the number of labels in the model 
             self.__model = trained_frcnn_model
 
         else: #brainscript
@@ -279,7 +280,7 @@ class FRCNNDetector:
         dummy_labels = np.zeros((self.__nr_rois, self.labels_count))
 
         # prepare the arguments
-        if (self.__isPythonModel):#python model
+        if (self.__is_python_model):#python model
             arguments = {
                 self.__model.arguments[0]: [img_model_arg],
                 self.__model.arguments[1]: [test_rois]
@@ -295,9 +296,8 @@ class FRCNNDetector:
         self.__model_warm  = True
         
         # take just the relevant part and cast to float64 to prevent overflow when doing softmax
-        if (self.__isPythonModel):#python model
+        if (self.__is_python_model):#python model
             rois_values = output[0][:roi_padding_index].astype(np.float64)
-            print("===", rois_values.shape)
         else: #brainscript
             rois_values = output[0][0][:roi_padding_index].astype(np.float64)
 
