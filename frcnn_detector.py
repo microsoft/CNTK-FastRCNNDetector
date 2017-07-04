@@ -61,6 +61,7 @@ class FRCNNDetector:
         self.__use_selective_search_rois = use_selective_search_rois
         self.__use_grid_rois = use_grid_rois
         self.__model = None
+        self.__is_python_model = False
         self.__model_warm = False
         self.__grid_rois_cache = {}
 
@@ -97,6 +98,7 @@ class FRCNNDetector:
             self.__model.arguments[self.__args_indices["features"]]: [dummy_image],
             self.__model.arguments[self.__args_indices["rois"]]: [dummy_rois]
         }
+
         self.__model.eval(arguments)
 
         self.__model_warm = True
@@ -107,45 +109,56 @@ class FRCNNDetector:
             raise Exception("Model already loaded")
         
         trained_frcnn_model = load_model(self.__model_path)
+        self.__is_python_model = True if (len(trained_frcnn_model.arguments) < 3) else False
 
-        # cache indices of the model arguments
-        args_indices = {}
-        for i,arg in enumerate(trained_frcnn_model.arguments):
-            args_indices[arg.name] = i
+        if (self.__is_python_model):
+            self.__args_indices = {"features" : 0, "rois" : 1}
+            self.__nr_rois = trained_frcnn_model.arguments[self.__args_indices["rois"]].shape[0]
+            self.__resize_width = trained_frcnn_model.arguments[self.__args_indices["features"]].shape[1]
+            self.__resize_height = trained_frcnn_model.arguments[self.__args_indices["features"]].shape[2]
+            self.labels_count = trained_frcnn_model.arguments[self.__args_indices["rois"]].shape[1] 
+            self.__model = trained_frcnn_model
 
-        self.__nr_rois = trained_frcnn_model.arguments[args_indices["rois"]].shape[0]
-        self.__resize_width = trained_frcnn_model.arguments[args_indices["features"]].shape[1]
-        self.__resize_height = trained_frcnn_model.arguments[args_indices["features"]].shape[2]
-        self.labels_count = trained_frcnn_model.arguments[args_indices["roiLabels"]].shape[1]
 
-        # next, we adjust the clone the model and create input nodes just for the features (image) and ROIs
-        # This will make sure that only the calculations that are needed for evaluating images are performed
-        # during test time
-        #  
-        # find the original features and rois input nodes
-        features_node = find_by_name(trained_frcnn_model, "features")
-        rois_node = find_by_name(trained_frcnn_model, "rois")
+        else: 
+            # cache indices of the model arguments
+            args_indices = {}
+            for i,arg in enumerate(trained_frcnn_model.arguments):
+               args_indices[arg.name] = i
 
-        #  find the output "z" node
-        z_node = find_by_name(trained_frcnn_model, 'z')
+            self.__nr_rois = trained_frcnn_model.arguments[args_indices["rois"]].shape[0]
+            self.__resize_width = trained_frcnn_model.arguments[args_indices["features"]].shape[1]
+            self.__resize_height = trained_frcnn_model.arguments[args_indices["features"]].shape[2]
+            self.labels_count = trained_frcnn_model.arguments[args_indices["roiLabels"]].shape[1]
+            
+            # next, we adjust the clone the model and create input nodes just for the features (image) and ROIs
+            # This will make sure that only the calculations that are needed for evaluating images are performed
+            # during test time
+            #  
+            # find the original features and rois input nodes
+            features_node = find_by_name(trained_frcnn_model, "features")
+            rois_node = find_by_name(trained_frcnn_model, "rois")
 
-        # define new input nodes for the features (image) and rois
-        image_input = input_variable(features_node.shape, name='features')
-        roi_input = input_variable(rois_node.shape, name='rois')
+            #  find the output "z" node
+            z_node = find_by_name(trained_frcnn_model, 'z')
 
-        # Clone the desired layers with fixed weights and place holder for the new input nodes
-        cloned_nodes = combine([z_node.owner]).clone(
-            CloneMethod.freeze,
-            {features_node: placeholder(name='features'), rois_node: placeholder(name='rois')})
+            # define new input nodes for the features (image) and rois
+            image_input = input_variable(features_node.shape, name='features')
+            roi_input = input_variable(rois_node.shape, name='rois')
 
-        # apply the cloned nodes to the input nodes to obtain the model for evaluation
-        self.__model = cloned_nodes(image_input, roi_input)
+            # Clone the desired layers with fixed weights and place holder for the new input nodes
+            cloned_nodes = combine([z_node.owner]).clone(
+               CloneMethod.freeze,
+               {features_node: placeholder(name='features'), rois_node: placeholder(name='rois')})
 
-        # cache the indices of the input nodes
-        self.__args_indices = {}
+            # apply the cloned nodes to the input nodes to obtain the model for evaluation
+            self.__model = cloned_nodes(image_input, roi_input)
 
-        for i,arg in enumerate(self.__model.arguments):
-            self.__args_indices[arg.name] = i
+            # cache the indices of the input nodes
+            self.__args_indices = {}
+
+            for i,arg in enumerate(self.__model.arguments):
+                self.__args_indices[arg.name] = i
 
 
     def resize_and_pad(self, img):
@@ -272,7 +285,10 @@ class FRCNNDetector:
         self.__model_warm  = True
         
         # take just the relevant part and cast to float64 to prevent overflow when doing softmax
-        rois_values = output[0][0][:roi_padding_index].astype(np.float64)
+        if (self.__is_python_model):
+            rois_values = output[0][:roi_padding_index].astype(np.float64)
+        else: 
+            rois_values = output[0][0][:roi_padding_index].astype(np.float64)
 
         # get the prediction for each roi by taking the index with the maximal value in each row
         rois_labels_predictions = np.argmax(rois_values, axis=1)
@@ -393,8 +409,3 @@ if __name__ == "__main__":
         with open(json_output_path, "wt") as handle:
             json_dump = json.dumps(json_output_obj, indent=2)
             handle.write(json_dump)
-
-
-
-
-
