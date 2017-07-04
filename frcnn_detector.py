@@ -94,16 +94,10 @@ class FRCNNDetector:
         dummy_image = np.ones((3, self.__resize_width, self.__resize_height)) * 255.0
 
         # prepare the arguments
-        if (self.__is_python_model):#python model
-            arguments = {
-                self.__model.arguments[0]: [dummy_image],
-                self.__model.arguments[1]: [dummy_rois]
-            }
-        else: #brainscript
-            arguments = {
-                self.__model.arguments[self.__args_indices["features"]]: [dummy_image],
-                self.__model.arguments[self.__args_indices["rois"]]: [dummy_rois]
-            }
+        arguments = {
+            self.__model.arguments[self.__args_indices["features"]]: [dummy_image],
+            self.__model.arguments[self.__args_indices["rois"]]: [dummy_rois]
+        }
 
         self.__model.eval(arguments)
 
@@ -117,15 +111,16 @@ class FRCNNDetector:
         trained_frcnn_model = load_model(self.__model_path)
         self.__is_python_model = True if (len(trained_frcnn_model.arguments) < 3) else False
 
-        print(trained_frcnn_model.output)
-        if (self.__is_python_model):#python model
-            self.__nr_rois = trained_frcnn_model.arguments[1].shape[0]
-            self.__resize_width = trained_frcnn_model.arguments[0].shape[1]
-            self.__resize_height = trained_frcnn_model.arguments[0].shape[2]
-            self.labels_count = trained_frcnn_model.arguments[1].shape[1] # this should be the number of labels in the model 
+        if (self.__is_python_model):
+            self.__args_indices = {"features" : 0, "rois" : 1}
+            self.__nr_rois = trained_frcnn_model.arguments[self.__args_indices["rois"]].shape[0]
+            self.__resize_width = trained_frcnn_model.arguments[self.__args_indices["features"]].shape[1]
+            self.__resize_height = trained_frcnn_model.arguments[self.__args_indices["features"]].shape[2]
+            self.labels_count = trained_frcnn_model.arguments[self.__args_indices["rois"]].shape[1] 
             self.__model = trained_frcnn_model
 
-        else: #brainscript
+
+        else: 
             # cache indices of the model arguments
             args_indices = {}
             for i,arg in enumerate(trained_frcnn_model.arguments):
@@ -159,11 +154,11 @@ class FRCNNDetector:
             # apply the cloned nodes to the input nodes to obtain the model for evaluation
             self.__model = cloned_nodes(image_input, roi_input)
 
-        # cache the indices of the input nodes
-        self.__args_indices = {}
+            # cache the indices of the input nodes
+            self.__args_indices = {}
 
-        for i,arg in enumerate(self.__model.arguments):
-            self.__args_indices[arg.name] = i
+            for i,arg in enumerate(self.__model.arguments):
+                self.__args_indices[arg.name] = i
 
 
     def resize_and_pad(self, img):
@@ -280,25 +275,19 @@ class FRCNNDetector:
         dummy_labels = np.zeros((self.__nr_rois, self.labels_count))
 
         # prepare the arguments
-        if (self.__is_python_model):#python model
-            arguments = {
-                self.__model.arguments[0]: [img_model_arg],
-                self.__model.arguments[1]: [test_rois]
-            }
-        else: #brainscript
-            arguments = {
-                self.__model.arguments[self.__args_indices["features"]]: [img_model_arg],
-                self.__model.arguments[self.__args_indices["rois"]]: [test_rois]
-            }
+        arguments = {
+            self.__model.arguments[self.__args_indices["features"]]: [img_model_arg],
+            self.__model.arguments[self.__args_indices["rois"]]: [test_rois]
+        }
 
         # run it through the model
         output = self.__model.eval(arguments)
         self.__model_warm  = True
         
         # take just the relevant part and cast to float64 to prevent overflow when doing softmax
-        if (self.__is_python_model):#python model
+        if (self.__is_python_model):
             rois_values = output[0][:roi_padding_index].astype(np.float64)
-        else: #brainscript
+        else: 
             rois_values = output[0][0][:roi_padding_index].astype(np.float64)
 
         # get the prediction for each roi by taking the index with the maximal value in each row
